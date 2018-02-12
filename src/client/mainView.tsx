@@ -34,16 +34,14 @@
 import * as React from 'react';
 import * as Splitter from 'react-split-pane';
 import * as BotChat from 'botframework-webchat';
-import { getSettings, Settings, addSettingsListener, selectedActivity$ } from './settings';
+import { getSettings, Settings, addSettingsListener, selectedActivity$, layoutDefault } from './settings';
 import { LayoutActions, InspectorActions } from './reducers';
 import { Settings as ServerSettings } from '../types/serverSettingsTypes';
 import { AddressBar } from './addressBar/addressBar';
 import { InspectorView } from './inspectorView'
 import { LogView } from './logView';
 import { IUser } from '../types/userTypes';
-import { AboutDialog } from './dialogs/aboutDialog';
 import { AppSettingsDialog } from './dialogs/appSettingsDialog';
-import { ConversationSettingsDialog } from './dialogs/conversationSettingsDialog';
 import * as Constants from './constants';
 import { Emulator } from './emulator';
 import { BotEmulatorContext } from './botEmulatorContext';
@@ -232,12 +230,12 @@ export class MainView extends React.Component<{}, {}> {
         }
     }
 
-    initBotChatContainerRef(ref, initialWidth:number) {
+    initBotChatContainerRef(ref, initialWidth: number) {
         this.botChatContainer = ref;
         this.updateBotChatContainerCSS(initialWidth);
     }
 
-    botChatComponent(initialWidth:number) {
+    botChatComponent(initialWidth: number) {
         if (this.directline) {
             const settings = getSettings();
             const srvSettings = new ServerSettings(settings.serverSettings);
@@ -304,18 +302,35 @@ export class MainView extends React.Component<{}, {}> {
 
     render() {
         const settings = getSettings();
-        let vertSplit = Number(settings.layout.vertSplit);
-        let horizSplit = Number(settings.layout.horizSplit);
+
+        const minVertSplit = 0;
+        const minHorizSplit = 42;
+
+        let vertSplit;
+        if (typeof settings.layout.vertSplit === "number")
+            vertSplit = settings.layout.vertSplit;
+        else
+            vertSplit = Number(settings.layout.vertSplit) || layoutDefault.vertSplit;
+
+        let horizSplit;
+        if (typeof settings.layout.horizSplit === "number")
+            horizSplit = settings.layout.horizSplit;
+        else
+            horizSplit = Number(settings.layout.horizSplit) || layoutDefault.horizSplit;
+
+        vertSplit = vertSplit > minVertSplit ? vertSplit : minVertSplit;
+        horizSplit = horizSplit > minHorizSplit ? horizSplit : minHorizSplit;
+
         return (
             <div className='mainview'>
                 <div className='botchat-container'>
-                    <Splitter split="vertical" minSize={200} maxSize={-200} defaultSize={vertSplit} primary="second" onChange={(size) => this.verticalSplitChange(size)}>
+                    <Splitter split="vertical" minSize={minVertSplit} maxSize={-200} defaultSize={vertSplit} primary="second" onChange={(size) => this.verticalSplitChange(size)}>
                         <div className='fill-parent'>
                             <AddressBar />
                             {this.botChatComponent(vertSplit)}
                         </div>
                         <div className="fill-parent">
-                            <Splitter split="horizontal" primary="second" minSize={42} maxSize={-44} defaultSize={horizSplit} onChange={(size) => LayoutActions.rememberHorizontalSplitter(size)}>
+                            <Splitter split="horizontal" primary="second" minSize={minHorizSplit} maxSize={-44} defaultSize={horizSplit} onChange={(size) => LayoutActions.rememberHorizontalSplitter(size)}>
                                 <div className="wc-chatview-panel">
                                     <InspectorView />
                                 </div>
@@ -326,9 +341,7 @@ export class MainView extends React.Component<{}, {}> {
                         </div>
                     </Splitter>
                 </div>
-                <AboutDialog />
                 <AppSettingsDialog />
-                <ConversationSettingsDialog />
             </div>
         );
     }

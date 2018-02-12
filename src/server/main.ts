@@ -33,6 +33,7 @@
 
 import * as Electron from 'electron';
 import { Menu } from 'electron';
+import { Subject} from 'rxjs';
 import { getSettings, dispatch } from './settings';
 import { WindowStateAction } from './reducers/windowStateReducer';
 import * as url from 'url';
@@ -45,6 +46,13 @@ import { WindowManager } from './windowManager';
 import * as commandLine from './commandLine'
 import * as electronLocalShortcut from 'electron-localshortcut';
 
+// Ensure further options aren't passed to Chromium
+Electron.app.setAsDefaultProtocolClient('botemulator', process.execPath, [
+    '--protocol-launcher',
+    '--'
+]);
+
+// Uncaught exception handler
 (process as NodeJS.EventEmitter).on('uncaughtException', (error: Error) => {
     console.error(error);
     log.error('[err-server]', error.message.toString(), JSON.stringify(error.stack));
@@ -92,7 +100,7 @@ var windowIsOffScreen = function(windowBounds: Electron.Rectangle): boolean {
 
 const createMainWindow = (listenPort: number) => {
 
-    const windowTitle = "Bot Framework Channel Emulator";
+    const windowTitle = "Bot Framework Emulator";
 
     const settings = getSettings();
     let initBounds: Electron.Rectangle = {
@@ -194,28 +202,35 @@ const createMainWindow = (listenPort: number) => {
         }
     });
 
-    Electron.globalShortcut.register("CommandOrControl+=", () => {
+    let registerHotkeys = (hotkeys: Array<string>, callback: () => void, window?: Electron.BrowserWindow) => {
+        const eventStream = new Subject();
+        eventStream.debounceTime(100).subscribe(callback);
+        const addToEventStream = () => eventStream.next("");
+        if (window) {
+            hotkeys.forEach(hotkey => electronLocalShortcut.register(window, hotkey, addToEventStream));
+        } else {
+            hotkeys.forEach(hotkey => electronLocalShortcut.register(hotkey, addToEventStream));
+        }
+    };
+
+    registerHotkeys(["CmdOrCtrl+="], () => {
         windowManager.zoomIn();
     });
-    Electron.globalShortcut.register("CommandOrControl+-", () => {
+    registerHotkeys(["CmdOrCtrl+-"], () => {
         windowManager.zoomOut();
     });
-    Electron.globalShortcut.register("CommandOrControl+0", () => {
+    registerHotkeys(["CmdOrCtrl+0"], () => {
         windowManager.zoomTo(0);
     });
-
-    let registerHotkeys = (hotkeys, callback) => hotkeys.forEach(hotkey =>
-        electronLocalShortcut.register(mainWindow, hotkey, callback));
-
-    registerHotkeys(["F10", "Alt+F"],() => {
+    registerHotkeys(["F10", "Alt+F"], () => {
         Emulator.send('open-menu');
-    });
-    registerHotkeys(["F5", "CmdOrCtrl+R"],() => {
+    }, mainWindow);
+    registerHotkeys(["F5", "CmdOrCtrl+R"], () => {
         Emulator.send('new-conversation');
-    });
-    registerHotkeys(["F6", "CmdOrCtrl+L"],() => {
+    }, mainWindow);
+    registerHotkeys(["F6", "CmdOrCtrl+L"], () => {
         Emulator.send('toggle-address-bar-focus');
-    });
+    }, mainWindow);
 
     mainWindow.once('ready-to-show', () => {
         mainWindow.webContents.setZoomLevel(settings.windowState.zoomLevel);
